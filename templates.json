@@ -1,0 +1,30 @@
+{
+  "exportedAt": "2026-10-29T10:40:00Z",
+  "templates": [
+    {
+      "id": "t-25c",
+      "name": "2.5C",
+      "assetId": "images/t-25c.jpg",
+      "w": 3000,
+      "h": 2000,
+      "fmt": "EAN13",
+      "bg": false,
+      "bc": {
+        "x": 0.70133,
+        "y": 0.6445,
+        "w": 0.18233,
+        "h": 0.1365
+      },
+      "info": {
+        "x": 0.70133,
+        "y": 0.7905,
+        "w": 0.18233,
+        "h": 0.0935
+      },
+      "nameScale": 1,
+      "infoScale": 1,
+      "infoText": "모델명(제품명) : {제품명}\n제조사 : VICXXO GROUP LIMITED\n제조국 : 중국\n제조자(수입자) : (주)빅쏘코리아",
+      "order": 1
+    }
+  ]
+}

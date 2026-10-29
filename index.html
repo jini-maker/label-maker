@@ -1,0 +1,485 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><style>body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style><script>window.__SITE=true</script></head><body><title>제품 바코드 메이커</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Roboto+Condensed:wght@700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: two modes. 만들기 = template strip → one-off model rows | big composite preview. 관리 = template list | editor (stage with draggable label boxes + settings). */
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --line:#dcdfe5; --fg:#15181d; --muted:#5d6572;
+  --accent:#1f5fd1; --accent-ink:#ffffff; --bad:#c2362b; --ok:#1d7a46; --stage:#cfd3da;
+  --box-bc:#1f5fd1; --box-info:#d9711c;
+  --sans:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101318; --surface:#191d24; --line:#2b313b; --fg:#e6e9ee; --muted:#98a1ae;
+  --accent:#6b9cff; --accent-ink:#0b1020; --bad:#ff7a6e; --ok:#5fcf8f; --stage:#272c35;
+  --box-bc:#6b9cff; --box-info:#ffa45c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101318; --surface:#191d24; --line:#2b313b; --fg:#e6e9ee; --muted:#98a1ae;
+  --accent:#6b9cff; --accent-ink:#0b1020; --bad:#ff7a6e; --ok:#5fcf8f; --stage:#272c35;
+  --box-bc:#6b9cff; --box-info:#ffa45c; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5}
+.wrap{max-width:1280px;margin:0 auto;padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+h1{font-size:21px;margin:0;font-weight:700}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:3px}
+.tabs button{border:0;background:transparent;padding:6px 14px;border-radius:6px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);font-weight:500}
+.cols{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.2fr);gap:18px;align-items:start}
+.cols.admin{grid-template-columns:240px minmax(0,1fr)}
+@media (max-width:920px){.cols,.cols.admin{grid-template-columns:minmax(0,1fr)}}
+.stack{display:grid;gap:18px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.panel h2{font-size:15px;margin:0;font-weight:700}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.row.between{justify-content:space-between;align-items:center}
+label{display:grid;gap:4px;font-size:12px;color:var(--muted);letter-spacing:.02em}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0;width:100%}
+input[type=range]{padding:0}
+input[type=file]{padding:6px}
+textarea{font-size:13px;min-height:96px;resize:vertical;line-height:1.6}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;cursor:pointer;border-radius:6px;padding:7px 12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);white-space:nowrap}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+.hint{font-size:12px;color:var(--muted);margin:0}
+.hint code{font-family:var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.tpl{display:grid;gap:6px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);text-align:left;white-space:normal}
+.tpl img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:4px;background:var(--stage)}
+.tpl span{font-size:12.5px;font-weight:500;overflow-wrap:anywhere}
+.tpl[aria-pressed="true"]{outline:2px solid var(--accent);border-color:transparent}
+.list{display:grid;gap:4px}
+.rrow{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:8px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.rrow[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.rrow textarea{grid-column:1/-1;min-height:88px;font-size:12.5px}
+.rrow .foot{grid-column:1/-1;display:flex;gap:8px;justify-content:space-between;align-items:center}
+.prod{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);cursor:pointer;text-align:left}
+.prod[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.prod .nm{min-width:0;overflow-wrap:anywhere;font-size:13px}
+.prod .cd{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.tag{font-size:11px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.tag.bad{color:var(--bad);border-color:currentColor}
+.stage{background:var(--stage);border-radius:8px;padding:10px;display:grid;place-items:center;min-height:240px}
+.stage canvas{max-width:100%;height:auto;display:block;border-radius:3px}
+.edit{position:relative;display:inline-block;max-width:100%;line-height:0;touch-action:none;user-select:none}
+.edit canvas{max-width:100%;height:auto;display:block}
+.box{position:absolute;border:2px dashed var(--c);background:color-mix(in srgb,var(--c) 10%,transparent);cursor:move;touch-action:none}
+.box.bc{--c:var(--box-bc)} .box.info{--c:var(--box-info)}
+.box b{position:absolute;left:-2px;bottom:100%;font:500 11px/1.6 var(--sans);background:var(--c);color:#fff;padding:0 6px;border-radius:4px 4px 0 0;white-space:nowrap}
+.box i{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;background:var(--c);border:2px solid #fff;border-radius:3px;cursor:nwse-resize}
+.tlist{display:grid;gap:4px}
+.tlist button{text-align:left;display:flex;justify-content:space-between;gap:8px}
+.tlist button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:640px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;padding:4px 6px;border-bottom:1px solid var(--line)}
+td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.x{width:1%}
+td textarea.cellta{min-height:92px;font-size:12.5px;min-width:240px}
+button.mini{font-size:11.5px;padding:2px 8px;margin-top:4px}
+
+.msg{font-size:11.5px;margin-top:2px}
+.msg.bad{color:var(--bad)} .msg.ok{color:var(--ok)}
+.empty{color:var(--muted);text-align:center;padding:28px 10px;border:1px dashed var(--line);border-radius:8px}
+.dirty{font-size:12px;color:var(--box-info)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:5;max-width:calc(100% - 32px)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>제품 바코드 메이커</h1>
+    <div class="tabs" role="tablist" id="tabs" hidden>
+      <button role="tab" id="tabMake" aria-selected="true">라벨 만들기</button>
+      <button role="tab" id="tabAdmin" aria-selected="false">템플릿 관리</button>
+    </div>
+  </header>
+
+  <!-- ===== 만들기 ===== -->
+  <div id="viewMake" class="cols">
+    <div class="stack">
+      <section class="panel">
+        <h2>1. 제품 선택</h2>
+        <div class="strip" id="strip"><div class="empty">템플릿을 불러오는 중입니다.</div></div>
+      </section>
+      <section class="panel">
+        <div class="row between"><h2>2. 모델 입력</h2><button id="rClear">입력 비우기</button></div>
+        <p class="hint">만들 모델을 한 줄씩 입력하세요. 입력은 저장되지 않고, 전체 다운로드가 끝나면 비워집니다. 줄을 누르면 오른쪽에서 미리 볼 수 있습니다.</p>
+        <div class="list" id="rows"></div>
+        <div class="row"><button id="rAdd">+ 모델 추가</button></div>
+        <details id="rPasteBox">
+          <summary class="hint" style="cursor:pointer">엑셀에서 여러 개 붙여넣기</summary>
+          <p class="hint" style="margin-top:8px">제품명 | 바코드 | 정보 라벨 3열을 복사해 붙여넣으세요. 정보 라벨 열은 없어도 됩니다(기본값 사용). 셀 안 줄바꿈(Alt+Enter)도 그대로 들어갑니다.</p>
+          <textarea id="rPaste" class="mono" placeholder="2.5C_IP 15/PRO/16&#9;8809919119993"></textarea>
+          <div class="row" style="margin-top:8px"><button id="rPasteAdd">붙여넣은 내용 추가</button></div>
+        </details>
+      </section>
+    </div>
+    <section class="panel">
+      <div class="row between">
+        <h2 id="mkTitle">3. 미리보기</h2>
+        <div class="row">
+          <button id="saveOne">이 모델 저장</button>
+          <button class="primary" id="zipAll">전체 다운로드 (ZIP)</button>
+        </div>
+      </div>
+      <div class="stage"><canvas id="big"></canvas></div>
+    </section>
+  </div>
+
+  <!-- ===== 관리 ===== -->
+  <div id="viewAdmin" class="cols admin" hidden>
+    <section class="panel">
+      <h2>템플릿</h2>
+      <div class="tlist" id="tlist"></div>
+      <button id="newTpl">+ 새 템플릿</button>
+      <hr style="border:0;border-top:1px solid var(--line);width:100%;margin:4px 0">
+      <button id="exportSite">배포용 파일 내보내기</button>
+      <p class="hint">GitHub에 올릴 index.html, templates.json, 이미지를 ZIP으로 받습니다. 템플릿을 바꾼 뒤 다시 받아 올리세요.</p>
+    </section>
+    <div class="stack" id="editor"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const h = (tag, props={}, ...kids) => { const e=document.createElement(tag); for (const k in props){ if(k==="class") e.className=props[k]; else if(k.startsWith("on")) e[k]=props[k]; else if(k in e && k!=="list") e[k]=props[k]; else e.setAttribute(k,props[k]); } kids.flat().forEach(c=>e.append(c)); return e; };
+function toast(t){ const d=h("div",{class:"toast"},t); document.body.append(d); setTimeout(()=>d.remove(),2800); }
+const lsGet=(k,d)=>{ try{ const v=JSON.parse(localStorage.getItem(k)); return v??d }catch(e){ return d } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)) }catch(e){} };
+
+let db=null, user=null, assets=null, downloads=null, isAdmin=false;
+let templates=[], selT=lsGet("bcm-selT",null), selP=0;
+const imgCache={};
+
+/* ---------- barcode ---------- */
+function ean13Check(d12){ let s=0; for(let i=0;i<12;i++) s+=(+d12[i])*(i%2?3:1); return String((10-s%10)%10); }
+function normalize(raw, fmt){
+  const v=String(raw||"").trim();
+  if(!v) return {ok:false,msg:"바코드를 입력하세요"};
+  if(fmt==="EAN13"){
+    const d=v.replace(/[\s-]/g,"");
+    if(!/^\d+$/.test(d)) return {ok:false,msg:"숫자만 가능"};
+    if(d.length===12){ const f=d+ean13Check(d); return {ok:true,value:f,msg:`체크숫자 ${f[12]} 자동 추가`}; }
+    if(d.length!==13) return {ok:false,msg:`12~13자리 (현재 ${d.length})`};
+    const c=ean13Check(d.slice(0,12)); if(c!==d[12]) return {ok:false,msg:`체크숫자 불일치 (끝자리 ${c})`};
+    return {ok:true,value:d,msg:""};
+  }
+  if(!/^[\x20-\x7E]+$/.test(v)) return {ok:false,msg:"영문·숫자·기호만"};
+  return {ok:true,value:v,msg:""};
+}
+function cropInk(c){
+  const g=c.getContext("2d"), {width:w,height:hh}=c, d=g.getImageData(0,0,w,hh).data;
+  let x0=w,y0=hh,x1=-1,y1=-1;
+  for(let y=0;y<hh;y++) for(let x=0;x<w;x++){ if(d[(y*w+x)*4]<128){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  const o=document.createElement("canvas"); o.width=x1-x0+1; o.height=y1-y0+1;
+  o.getContext("2d").drawImage(c,-x0,-y0); return o;
+}
+const bcCache={};
+function barcodeArt(value, fmt, aspect){
+  const key=value+"|"+fmt+"|"+aspect.toFixed(3); if(bcCache[key]) return bcCache[key];
+  const M=6, draw=hgt=>{ const c=document.createElement("canvas");
+    JsBarcode(c,value,{format:fmt,width:M,height:hgt,displayValue:true,font:"Arial, Helvetica, sans-serif",fontSize:M*12,textMargin:M,margin:M*14,background:"#ffffff",lineColor:"#000000"});
+    return cropInk(c); };
+  const a=draw(M*30), extra=a.height-M*30;
+  const out=draw(Math.max(M*8, Math.round(aspect*a.width-extra)));
+  return bcCache[key]=out;
+}
+
+/* ---------- composite ---------- */
+const DEF = {name:"새 템플릿", assetId:"", w:0, h:0, fmt:"EAN13", bg:false,
+  bc:{x:.62,y:.62,w:.2,h:.14}, info:{x:.62,y:.79,w:.2,h:.1}, nameScale:1, infoScale:1,
+  infoText:"모델명(제품명) : {제품명}\n제조사 : \n제조국 : \n제조자(수입자) : "};
+function infoOf(t,p){ return (p.info&&p.info.trim())?p.info:(t.infoText||""); }
+function parseRows(text){ const rows=[]; let row=[],cell="",q=false;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=c; }
+    else if(c==='"'&&cell===""){ q=true; } else if(c==="\t"){ row.push(cell); cell=""; } else if(c==="\n"){ row.push(cell); rows.push(row); row=[]; cell=""; } else if(c!=="\r") cell+=c; }
+  row.push(cell); rows.push(row); return rows.filter(r=>r.some(x=>x.trim())); }
+function fill(text, p){ return text.replace(/\{제품명\}/g,p.name||"").replace(/\{바코드\}/g,p.code||"").replace(/\{재질\}/g,p.mat||""); }
+function rr(g,x,y,w,hh,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+hh,r); g.arcTo(x+w,y+hh,x,y+hh,r); g.arcTo(x,y+hh,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+
+function compose(t, img, p, scale=1){
+  const W=Math.round(img.naturalWidth*scale), H=Math.round(img.naturalHeight*scale);
+  const c=document.createElement("canvas"); c.width=W; c.height=H;
+  const g=c.getContext("2d"); g.drawImage(img,0,0,W,H); g.imageSmoothingQuality="high";
+  const n=normalize(p.code,t.fmt);
+  // barcode label
+  const b={x:t.bc.x*W,y:t.bc.y*H,w:t.bc.w*W,h:t.bc.h*H};
+  if(t.bg){ g.fillStyle="#fff"; rr(g,b.x,b.y,b.w,b.h,Math.min(b.w,b.h)*.07); g.fill(); }
+  const name=(p.name||"").trim();
+  let top=b.y+b.h*.09;
+  if(name){
+    let fs=b.h*.115*(t.nameScale||1); g.fillStyle="#000"; g.textAlign="center"; g.textBaseline="middle";
+    const f=s=>`700 ${s}px "Roboto Condensed","Noto Sans KR","Arial Narrow",sans-serif`;
+    g.font=f(fs); const mw=g.measureText(name).width; if(mw>b.w*.9){ fs*=b.w*.9/mw; g.font=f(fs); }
+    g.fillText(name,b.x+b.w/2,b.y+b.h*.2); top=b.y+b.h*.31;
+  }
+  const bot=b.y+b.h*.92, tw=b.w*.82, th=bot-top;
+  if(n.ok){
+    try{
+      const art=barcodeArt(n.value,t.fmt,th/tw);
+      const s=Math.min(tw/art.width, th/art.height), dw=art.width*s, dh=art.height*s;
+      g.drawImage(art, b.x+(b.w-dw)/2, top+(th-dh)/2, dw, dh);
+    }catch(e){ n.ok=false; n.msg="바코드 생성 실패"; }
+  }
+  // info label
+  const lines=infoOf(t,p).split(/\r?\n/).map(l=>fill(l,p).trim()).filter(Boolean);
+  if(lines.length && t.info.w>0){
+    const r={x:t.info.x*W,y:t.info.y*H,w:t.info.w*W,h:t.info.h*H};
+    if(t.bg){ g.fillStyle="#fff"; rr(g,r.x,r.y,r.w,r.h,Math.min(r.w,r.h)*.1); g.fill(); }
+    let fs=Math.min(r.h*.72/lines.length/1.28, r.h*.2)*(t.infoScale||1);
+    const f=s=>`700 ${s}px "Noto Sans KR","Apple SD Gothic Neo",sans-serif`; g.font=f(fs);
+    let mw=Math.max(...lines.map(l=>g.measureText(l).width));
+    if(mw>r.w*.86){ fs*=r.w*.86/mw; g.font=f(fs); mw=r.w*.86; }
+    const lh=fs*1.28, x0=r.x+(r.w-mw)/2, y0=r.y+(r.h-lh*lines.length)/2;
+    g.fillStyle="#000"; g.textAlign="left"; g.textBaseline="middle";
+    lines.forEach((l,i)=>g.fillText(l,x0,y0+lh*(i+.5)));
+  }
+  return {canvas:c, ok:n.ok, msg:n.msg, value:n.value};
+}
+
+const SITE=!!window.__SITE;
+const srcOf=id=>id.includes("/")?id:"/_blob/"+id;
+function loadImg(id){
+  if(!id) return Promise.reject();
+  return imgCache[id] ||= new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=()=>{ delete imgCache[id]; rej(); }; i.src=srcOf(id); });
+}
+
+/* ---------- downloads ---------- */
+const safe=s=>(s||"").trim().replace(/[\\/:*?"<>|]/g,"_")||"barcode";
+const blobOf=c=>new Promise(r=>c.toBlob(r,"image/jpeg",.92));
+async function offer(filename,data){
+  if(!downloads){
+    if(SITE){ const a=document.createElement("a"); a.href=URL.createObjectURL(data); a.download=filename; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); return true; }
+    toast("이 화면에서는 저장을 지원하지 않습니다"); return; }
+  try{ await downloads.save({filename,data}); toast("저장했습니다"); return true; }
+  catch(e){ if(e&&e.code==="declined") return; toast(e&&e.code==="rate_limited"?"잠시 후 다시 시도하세요":"저장할 수 없습니다"); }
+}
+
+/* ================= 만들기 ================= */
+let rows=[{name:"",code:"",info:""}], selR=0;
+const curT=()=>templates.find(t=>t.id===selT);
+const filled=r=>r.name.trim()||r.code.trim();
+
+function renderStrip(){
+  const s=$("strip"); s.innerHTML="";
+  if(!templates.length){ s.append(h("div",{class:"empty"}, isAdmin?"템플릿 관리 탭에서 첫 템플릿을 등록하세요.":"아직 등록된 템플릿이 없습니다.")); return; }
+  if(!curT()) selT=templates[0].id;
+  templates.forEach(t=>{
+    s.append(h("button",{class:"tpl","aria-pressed":String(t.id===selT),onclick:()=>{ selT=t.id; lsSet("bcm-selT",selT); renderStrip(); renderRows(); renderBig(); }},
+      h("img",{alt:"",src:t.assetId?srcOf(t.assetId):"",loading:"lazy"}), h("span",{},t.name||"(이름 없음)")));
+  });
+}
+function renderRows(){
+  const L=$("rows"); L.innerHTML=""; const t=curT();
+  if(selR>=rows.length) selR=rows.length-1;
+  rows.forEach((r,i)=>{
+    const m=h("span",{class:"msg"});
+    const upd=()=>{ const n=normalize(r.code,t?t.fmt:"EAN13"); m.textContent=r.code.trim()?n.msg:""; m.className="msg "+(n.ok?"ok":"bad"); };
+    const pick=()=>{ if(selR!==i){ selR=i; L.querySelectorAll(".rrow").forEach((x,k)=>x.setAttribute("aria-current",String(k===i))); } renderBig(); };
+    const ni=h("input",{id:"rn"+i,placeholder:"제품명 (예: 2.5C_IP 15/PRO/16)",value:r.name,oninput:()=>{ r.name=ni.value; renderBig(); },onfocus:pick});
+    const ci=h("input",{id:"rc"+i,class:"mono",inputmode:"numeric",placeholder:"바코드",value:r.code,oninput:()=>{ r.code=ci.value; upd(); renderBig(); },onfocus:pick});
+    const ti=h("textarea",{id:"ri"+i,placeholder:"정보 라벨 (비우면 템플릿 기본값)\n"+(t?t.infoText||"":""),oninput:()=>{ r.info=ti.value; renderBig(); },onfocus:pick}); ti.value=r.info;
+    const row=h("div",{class:"rrow","aria-current":String(i===selR)},ni,ci,
+      h("button",{"aria-label":"이 줄 삭제",onclick:()=>{ rows.splice(i,1); if(!rows.length) rows.push({name:"",code:"",info:""}); renderRows(); renderBig(); }},"✕"),
+      ti, h("div",{class:"foot"},m,h("button",{class:"mini",onclick:()=>{ if(!t) return; r.info=fill(t.infoText||"",r); ti.value=r.info; pick(); }},"기본값 가져오기")));
+    row.addEventListener("click",e=>{ if(e.target===row) pick(); });
+    L.append(row); upd();
+  });
+}
+let bigTok=0;
+async function renderBig(){
+  const tok=++bigTok, big=$("big"), t=curT(), g=big.getContext("2d");
+  const fail=msg=>{ big.width=640; big.height=200; g.clearRect(0,0,640,200); g.fillStyle=getComputedStyle(document.body).getPropertyValue("--muted"); g.font='15px "Noto Sans KR",sans-serif'; g.textAlign="center"; g.fillText(msg,320,104); $("saveOne").disabled=true; };
+  $("zipAll").disabled=!t || !(downloads||SITE) || !rows.some(filled);
+  if(!t){ fail("제품을 선택하세요"); return; }
+  const r=rows[selR];
+  $("mkTitle").textContent = r && filled(r) ? `3. 미리보기 · ${r.name||r.code}` : "3. 미리보기";
+  let img; try{ img=await loadImg(t.assetId); }catch(e){ if(tok===bigTok) fail("패키지 이미지를 불러올 수 없습니다"); return; }
+  if(tok!==bigTok) return;
+  const c=compose(t,img,r&&filled(r)?r:{name:"",code:"",info:" "},Math.min(1,1600/img.naturalWidth));
+  big.width=c.canvas.width; big.height=c.canvas.height; g.drawImage(c.canvas,0,0);
+  $("saveOne").disabled=!c.ok||!(downloads||SITE);
+}
+function renderMake(){ renderStrip(); renderRows(); renderBig(); }
+
+$("rAdd").onclick=()=>{ rows.push({name:"",code:"",info:""}); selR=rows.length-1; renderRows(); renderBig(); $("rn"+selR).focus(); };
+$("rClear").onclick=()=>{ rows=[{name:"",code:"",info:""}]; selR=0; renderRows(); renderBig(); };
+$("rPasteAdd").onclick=()=>{ const add=parseRows($("rPaste").value).filter(p=>p.length>=2).map(p=>({name:p[0].trim(),code:p[1].trim(),info:(p[2]||"").trim()}));
+  if(!add.length){ toast("붙여넣은 내용에서 제품명과 바코드를 찾지 못했습니다. 엑셀에서 열을 그대로 복사하세요"); return; }
+  rows=rows.filter(filled).concat(add); selR=rows.length-add.length; $("rPaste").value=""; $("rPasteBox").open=false; renderRows(); renderBig(); toast(`${add.length}개 추가했습니다`); };
+$("saveOne").onclick=async()=>{ const t=curT(), r=rows[selR]; if(!t||!r) return;
+  const img=await loadImg(t.assetId), c=compose(t,img,r); if(!c.ok){ toast(c.msg); return; }
+  offer(`${safe(t.name)}_${safe(r.name)}_${c.value}.jpg`, await blobOf(c.canvas)); };
+$("zipAll").onclick=async()=>{ const t=curT(); if(!t) return;
+  const list=rows.filter(filled), bad=list.map(r=>[r,normalize(r.code,t.fmt)]).filter(x=>!x[1].ok);
+  if(bad.length){ selR=rows.indexOf(bad[0][0]); renderRows(); renderBig(); toast(`바코드를 확인하세요: ${bad[0][0].name||"(제품명 없음)"} - ${bad[0][1].msg}`); return; }
+  let img; try{ img=await loadImg(t.assetId); }catch(e){ toast("패키지 이미지를 불러올 수 없습니다"); return; }
+  const zip=new JSZip(), used={};
+  for(const r of list){ const c=compose(t,img,r);
+    let fn=`${safe(t.name)}_${safe(r.name)}_${c.value}.jpg`; if(used[fn]) fn=fn.replace(/\.jpg$/,`_${++used[fn]}.jpg`); else used[fn]=1;
+    zip.file(fn, await blobOf(c.canvas)); }
+  if(await offer(`${safe(t.name)}_${list.length}개.zip`, await zip.generateAsync({type:"blob"}))){ rows=[{name:"",code:"",info:""}]; selR=0; renderRows(); renderBig(); toast("저장했습니다. 입력을 비웠습니다"); } };
+
+/* ================= 관리 ================= */
+let editId=null, draft=null, dirty=false, edImg=null;
+const clone=o=>JSON.parse(JSON.stringify(o));
+function setDirty(v){ dirty=v; const d=$("dirtyMark"); if(d) d.hidden=!v; }
+function renderTList(){
+  const L=$("tlist"); L.innerHTML="";
+  if(!templates.length && !draft) L.append(h("p",{class:"hint"},"등록된 템플릿이 없습니다."));
+  templates.forEach(t=>L.append(h("button",{"aria-pressed":String(t.id===editId),onclick:()=>openEditor(t.id)}, h("span",{},t.name||"(이름 없음)"), h("span"))));
+  if(draft && !templates.find(t=>t.id===editId)) L.append(h("button",{"aria-pressed":"true"},"(저장 전) "+(draft.name||"새 템플릿")));
+}
+function openEditor(id){
+  const t=templates.find(x=>x.id===id);
+  editId=id; draft=t?Object.assign(clone(DEF),clone(t)):Object.assign(clone(DEF),{id}); delete draft.id;
+  edImg=null; setDirty(false); renderTList(); renderEditor();
+  if(draft.assetId) loadImg(draft.assetId).then(i=>{ if(editId===id){ edImg=i; drawStage(); } }).catch(()=>toast("패키지 이미지를 불러올 수 없습니다"));
+}
+$("newTpl").onclick=()=>{ openEditor(db.collection("templates").doc().id); };
+
+function field(label, el){ return h("label",{},label,el); }
+function renderEditor(){
+  const E=$("editor"); E.innerHTML="";
+  if(!draft){ E.append(h("section",{class:"panel"},h("div",{class:"empty"},"왼쪽에서 템플릿을 고르거나 새 템플릿을 만드세요."))); return; }
+  const nameI=h("input",{id:"eName",value:draft.name,oninput:()=>{ draft.name=nameI.value; setDirty(true); }});
+  const fileI=h("input",{id:"eFile",type:"file",accept:"image/png,image/jpeg,image/webp"});
+  fileI.onchange=async()=>{ const f=fileI.files[0]; if(!f) return;
+    if(!assets){ toast("이미지 업로드 권한이 없습니다"); return; }
+    toast("이미지 업로드 중…");
+    try{ const r=await assets.upload(f); const i=new Image();
+      i.onload=()=>{ imgCache[r.id]=Promise.resolve(i); draft.oldAsset ??= draft.assetId; draft.assetId=r.id; draft.w=i.naturalWidth; draft.h=i.naturalHeight; edImg=i; setDirty(true); drawStage(); toast("이미지를 올렸습니다. 저장을 눌러 확정하세요"); };
+      i.src=r.url;
+    }catch(e){ toast(e&&e.code==="too_large"?"20MB 이하 이미지만 올릴 수 있습니다":e&&e.code==="unsupported_type"?"PNG, JPG, WEBP만 가능합니다":"업로드하지 못했습니다"); } };
+
+  const stagePanel=h("section",{class:"panel"},
+    h("div",{class:"row between"},h("h2",{},"라벨 위치"),h("span",{class:"hint"},"상자를 끌어 옮기고, 오른쪽 아래 모서리로 크기를 바꿉니다.")),
+    h("div",{class:"stage",id:"eStage"},h("div",{class:"empty"},"패키지 이미지를 올리세요.")),
+    h("div",{class:"fields"},
+      field("미리보기 제품명", h("input",{id:"ePrevN",value:"2.5C_IP 15/PRO/16",oninput:drawStage})),
+      field("미리보기 바코드", h("input",{id:"ePrevC",class:"mono",value:"8809919119993",oninput:drawStage})),
+      field("제품명 글자 크기", h("input",{id:"eNS",type:"range",min:"0.5",max:"1.6",step:"0.05",value:draft.nameScale,oninput:e=>{ draft.nameScale=+e.target.value; setDirty(true); drawStage(); }})),
+      field("정보 글자 크기", h("input",{id:"eIS",type:"range",min:"0.5",max:"1.6",step:"0.05",value:draft.infoScale,oninput:e=>{ draft.infoScale=+e.target.value; setDirty(true); drawStage(); }}))));
+
+  const fmtS=h("select",{id:"eFmt",onchange:()=>{ draft.fmt=fmtS.value; setDirty(true); drawStage(); }},
+    h("option",{value:"EAN13"},"EAN-13 (880…)"), h("option",{value:"CODE128"},"CODE128")); fmtS.value=draft.fmt;
+  const bgS=h("select",{id:"eBg",onchange:()=>{ draft.bg=bgS.value==="1"; setDirty(true); drawStage(); }},
+    h("option",{value:"0"},"그리지 않음 (빈 라벨 이미지)"), h("option",{value:"1"},"흰 라벨 그리기")); bgS.value=draft.bg?"1":"0";
+  const infoT=h("textarea",{id:"eInfo",oninput:()=>{ draft.infoText=infoT.value; setDirty(true); drawStage(); }}); infoT.value=draft.infoText;
+
+  const setPanel=h("section",{class:"panel"},
+    h("h2",{},"템플릿 정보"),
+    h("div",{class:"fields"}, field("템플릿 이름",nameI), field("바코드 형식",fmtS), field("라벨 배경",bgS)),
+    field("패키지 이미지 (라벨 자리를 비운 이미지)", fileI),
+    field("기본 정보 라벨 (모델 입력에서 정보 라벨을 비우면 이 내용 사용)", infoT),
+    h("p",{class:"hint"},"한 줄이 라벨의 한 줄입니다. ", h("code",{},"{제품명}"), " ", h("code",{},"{바코드}"), " 는 입력한 값으로 바뀝니다. 비운 줄은 표시하지 않습니다."));
+
+  const delB=h("button",{class:"danger",id:"eDel"},"템플릿 삭제");
+  delB.onclick=async()=>{
+    if(!delB.dataset.armed){ delB.dataset.armed="1"; delB.textContent="한 번 더 누르면 삭제됩니다"; setTimeout(()=>{ delB.dataset.armed=""; delB.textContent="템플릿 삭제"; },4000); return; }
+    const exists=templates.find(t=>t.id===editId);
+    try{
+      if(exists){ await db.doc("templates/"+editId).delete();
+        const aid=exists.assetId; if(aid && assets && !templates.some(t=>t.id!==editId&&t.assetId===aid)) await assets.delete(aid).catch(()=>{}); }
+      if(draft.assetId && draft.assetId!==exists?.assetId && assets) await assets.delete(draft.assetId).catch(()=>{});
+      editId=null; draft=null; setDirty(false); renderTList(); renderEditor(); toast("삭제했습니다");
+    }catch(e){ toast("삭제하지 못했습니다"); } };
+  const saveB=h("button",{class:"primary",id:"eSave"},"저장");
+  saveB.onclick=async()=>{
+    if(!draft.assetId){ toast("패키지 이미지를 먼저 올리세요"); return; }
+    const body=clone(draft); const old=body.oldAsset; delete body.oldAsset; delete body.products;
+    body.order ??= Date.now(); body.updatedAt=new Date().toISOString();
+    saveB.disabled=true;
+    try{ await db.doc("templates/"+editId).set(body); draft.order=body.order; delete draft.oldAsset; setDirty(false); toast("저장했습니다. 모든 사용자에게 바로 반영됩니다");
+      if(old && old!==body.assetId && assets && !templates.some(t=>t.id!==editId&&t.assetId===old)) assets.delete(old).catch(()=>{}); }
+    catch(e){ toast(e&&e.code==="invalid_argument"?"저장 권한이 없습니다":e&&e.code==="quota_exceeded"?"저장 공간이 가득 찼습니다":"저장하지 못했습니다"); }
+    saveB.disabled=false; };
+  const actions=h("section",{class:"panel"},h("div",{class:"row between"},h("div",{class:"row"},saveB,h("span",{class:"dirty",id:"dirtyMark",hidden:!dirty},"저장 안 된 변경이 있습니다")),delB));
+
+  E.append(stagePanel,setPanel,actions);
+  drawStage();
+}
+let raf=0;
+function drawStage(){ cancelAnimationFrame(raf); raf=requestAnimationFrame(drawStageNow); }
+function drawStageNow(){
+  const st=$("eStage"); if(!st||!draft) return;
+  if(!edImg){ if(!st.querySelector(".empty")){ st.innerHTML=""; st.append(h("div",{class:"empty"},"패키지 이미지를 올리세요.")); } return; }
+  let wrap=st.querySelector(".edit");
+  if(!wrap){ st.innerHTML=""; wrap=h("div",{class:"edit"},h("canvas",{id:"eCanvas"})); st.append(wrap);
+    ["bc","info"].forEach(k=>{ const b=h("div",{class:"box "+k,"data-k":k},h("b",{},k==="bc"?"바코드 라벨":"정보 라벨"),h("i",{"data-r":"1"})); wrap.append(b); bindDrag(b,k,wrap); }); }
+  const p={name:$("ePrevN")?.value||"",code:$("ePrevC")?.value||""};
+  const r=compose(draft,edImg,p,Math.min(1,1400/edImg.naturalWidth)), cv=$("eCanvas");
+  cv.width=r.canvas.width; cv.height=r.canvas.height; cv.getContext("2d").drawImage(r.canvas,0,0);
+  wrap.querySelectorAll(".box").forEach(b=>{ const q=draft[b.dataset.k]; Object.assign(b.style,{left:q.x*100+"%",top:q.y*100+"%",width:q.w*100+"%",height:q.h*100+"%"}); });
+}
+function bindDrag(el,k,wrap){
+  el.addEventListener("pointerdown",e=>{
+    e.preventDefault(); el.setPointerCapture(e.pointerId);
+    const R=wrap.getBoundingClientRect(), s={...draft[k]}, x0=e.clientX, y0=e.clientY, resize=!!e.target.dataset.r;
+    const mv=ev=>{ const dx=(ev.clientX-x0)/R.width, dy=(ev.clientY-y0)/R.height, q=draft[k];
+      if(resize){ q.w=Math.min(1-s.x,Math.max(.02,s.w+dx)); q.h=Math.min(1-s.y,Math.max(.02,s.h+dy)); }
+      else { q.x=Math.min(1-s.w,Math.max(0,s.x+dx)); q.y=Math.min(1-s.h,Math.max(0,s.y+dy)); }
+      setDirty(true); drawStage(); };
+    const up=()=>{ el.removeEventListener("pointermove",mv); el.removeEventListener("pointerup",up); el.removeEventListener("pointercancel",up); };
+    el.addEventListener("pointermove",mv); el.addEventListener("pointerup",up); el.addEventListener("pointercancel",up);
+  });
+}
+
+
+$("exportSite").onclick=async()=>{
+  if(!templates.length){ toast("내보낼 템플릿이 없습니다"); return; }
+  const b=$("exportSite"); b.disabled=true; toast("배포용 파일을 만드는 중…");
+  try{
+    const zip=new JSZip(), out=[];
+    const bin=atob($("siteSrc").textContent.trim()), bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    zip.file("index.html", bytes);
+    for(const t of templates){
+      const {id,...rest}=t; const res=await fetch("/_blob/"+t.assetId); if(!res.ok) throw new Error("img");
+      const blob=await res.blob(), ext=blob.type==="image/png"?"png":blob.type==="image/webp"?"webp":"jpg", path=`images/${id}.${ext}`;
+      zip.file(path, blob); out.push({...rest,id,assetId:path});
+    }
+    zip.file("templates.json", JSON.stringify({exportedAt:new Date().toISOString(),templates:out},null,2));
+    await offer("label-maker-site.zip", await zip.generateAsync({type:"blob"}));
+  }catch(e){ toast("내보내지 못했습니다. 패키지 이미지를 확인하세요"); }
+  b.disabled=false;
+};
+
+/* ---------- tabs & boot ---------- */
+function show(v){
+  $("viewMake").hidden=v!=="make"; $("viewAdmin").hidden=v!=="admin";
+  $("tabMake").setAttribute("aria-selected",String(v==="make")); $("tabAdmin").setAttribute("aria-selected",String(v==="admin"));
+  lsSet("bcm-view",v);
+  if(v==="make") renderMake(); else { renderTList(); if(!draft && templates[0]) openEditor(templates[0].id); else renderEditor(); }
+}
+$("tabMake").onclick=()=>show("make"); $("tabAdmin").onclick=()=>show("admin");
+
+(async()=>{
+  if(SITE){ try{ const r=await fetch("templates.json",{cache:"no-store"}); templates=(await r.json()).templates||[]; }catch(e){ $("strip").innerHTML=""; $("strip").append(h("div",{class:"empty"},"템플릿 파일(templates.json)을 불러오지 못했습니다.")); return; } renderMake(); return; }
+  const use=n=>window.claude?.use?.(n)?.catch?.(()=>null) ?? Promise.resolve(null);
+  [db,user,downloads]=await Promise.all([use("db"),use("user"),use("downloads")]);
+  isAdmin = user ? await user.canEdit() : false;
+  if(isAdmin){ assets=await use("assets"); $("tabs").hidden=false; }
+  if(!db){ $("strip").innerHTML=""; $("strip").append(h("div",{class:"empty"},"템플릿을 불러올 수 없습니다. 로그인했는지 확인하세요.")); renderBig(); return; }
+  db.collection("templates").onSnapshot(snap=>{
+    templates=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.order||0)-(b.order||0));
+    if($("viewAdmin").hidden) renderMake(); else { renderTList(); if(!draft && templates[0]) openEditor(templates[0].id); }
+    renderStrip();
+  }, e=>toast("템플릿을 불러오지 못했습니다"));
+  if(isAdmin && lsGet("bcm-view","make")==="admin") show("admin");
+})();
+renderBig();
+if(document.fonts) Promise.all(['700 20px "Roboto Condensed"','700 20px "Noto Sans KR"'].map(f=>document.fonts.load(f))).then(()=>{ for(const k in bcCache) delete bcCache[k]; renderBig(); drawStage(); }).catch(()=>{});
+</script>
+</body></html>
